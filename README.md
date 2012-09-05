@@ -3,12 +3,15 @@ Keychaindump is a proof-of-concept tool for reading OS X keychain passwords as r
 
 ## How?
 Build instructions:
+
     $ gcc keychaindump.c -o keychaindump -lcrypto
 
 Basic usage:
+
     $ sudo ./keychaindump [path to keychain file, leave blank for default]
 
 Example with truncated and censored output:
+
     $ sudo ./keychaindump 
     [*] Searching process 15 heap range 0x7fa809400000-0x7fa809500000
     [*] Searching process 15 heap range 0x7fa809500000-0x7fa809600000
