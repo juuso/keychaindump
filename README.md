@@ -1,6 +1,8 @@
 # keychaindump
 Keychaindump is a proof-of-concept tool for reading OS X keychain passwords as root. It hunts for unlocked keychain master keys located in the memory space of the securityd process, and uses them to decrypt keychain files.
 
+See the [blog post](http://juusosalonen.com/post/30923743427/breaking-into-the-os-x-keychain) for a much more readable description.
+
 ## How?
 Build instructions:
 
