@@ -1,9 +1,11 @@
 # keychaindump
+
 Keychaindump is a proof-of-concept tool for reading OS X keychain passwords as root. It hunts for unlocked keychain master keys located in the memory space of the securityd process, and uses them to decrypt keychain files.
 
 See the [blog post](http://juusosalonen.com/post/30923743427/breaking-into-the-os-x-keychain) for a much more readable description.
 
 ## How?
+
 Build instructions:
 
     $ gcc keychaindump.c -o keychaindump -lcrypto
@@ -14,7 +16,7 @@ Basic usage:
 
 Example with truncated and censored output:
 
-    $ sudo ./keychaindump 
+    $ sudo ./keychaindump
     [*] Searching process 15 heap range 0x7fa809400000-0x7fa809500000
     [*] Searching process 15 heap range 0x7fa809500000-0x7fa809600000
     [*] Searching process 15 heap range 0x7fa809600000-0x7fa809700000
@@ -37,7 +39,9 @@ Example with truncated and censored output:
     ...
 
 ## Who?
+
 Keychaindump was written by [Juuso Salonen](http://twitter.com/juusosalonen), the guy behind [Radio Silence](http://radiosilenceapp.com) and [Private Eye](http://radiosilenceapp.com/private-eye).
 
 ## License
+
 Do whatever you wish. Please don't be evil.

